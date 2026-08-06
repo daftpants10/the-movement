@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>hrv dashboard — seks.design</title>
+<meta name="description" content="dfa alpha1 and hrv pattern analysis over rr-logger session exports." />
+<meta name="theme-color" content="#f6f1e9" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <a class="back" href="../index.html">← seks.design</a>
+
+  <h1>hrv dashboard</h1>
+  <p class="sub">dfa alpha1 + hrv metrics over rr-logger session exports. within-participant and between-participant pattern narratives.</p>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="sessions">sessions</button>
+    <button class="tab-btn" data-tab="participants">by participant</button>
+    <button class="tab-btn" data-tab="conditions">by condition</button>
+  </nav>
+
+  <!-- SESSIONS TAB -->
+  <section id="tab-sessions" class="tab-panel active">
+
+    <div class="panel">
+      <h2>data</h2>
+      <p class="status-text">drop session json files here, or use the file picker. files are copied into <code>data/sessions/</code>.</p>
+      <div id="dropzone" class="dropzone">
+        <span>drag json files here, or click to choose</span>
+        <input type="file" id="file-input" accept="application/json" multiple hidden />
+      </div>
+      <div class="btn-row">
+        <button id="rescan-btn" class="ghost">rescan data folder</button>
+      </div>
+      <p id="scan-status" class="status-text"></p>
+    </div>
+
+    <div class="panel">
+      <h2>overview</h2>
+      <div id="overview-wrap" class="table-wrap">
+        <p class="status-text">no data yet.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>sessions</h2>
+      <div id="sessions-wrap" class="table-wrap">
+        <p class="status-text">no data yet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PARTICIPANTS TAB -->
+  <section id="tab-participants" class="tab-panel">
+    <div class="panel">
+      <h2>within-participant</h2>
+      <label for="participant-select">participant</label>
+      <select id="participant-select"></select>
+      <div class="btn-row">
+        <button id="participant-narrative-btn" class="primary">get narrative</button>
+        <button id="participant-refresh-btn" class="ghost">regenerate</button>
+      </div>
+      <div id="participant-sessions" class="table-wrap"></div>
+      <div id="participant-narrative" class="narrative hidden"></div>
+    </div>
+  </section>
+
+  <!-- CONDITIONS TAB -->
+  <section id="tab-conditions" class="tab-panel">
+    <div class="panel">
+      <h2>between-participant</h2>
+      <label for="condition-select">condition</label>
+      <select id="condition-select"></select>
+      <div class="btn-row">
+        <button id="condition-narrative-btn" class="primary">get narrative</button>
+        <button id="condition-refresh-btn" class="ghost">regenerate</button>
+      </div>
+      <div id="condition-sessions" class="table-wrap"></div>
+      <div id="condition-narrative" class="narrative hidden"></div>
+    </div>
+  </section>
+
+  <!-- SESSION DETAIL MODAL -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-head">
+        <span id="modal-title"></span>
+        <button id="modal-close" class="ghost small">close</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <footer>
+    reads json exports from <code>data/sessions/</code>. narratives call the anthropic api and are cached until the underlying sessions change.
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
