@@ -36,6 +36,12 @@
         <input type="text" id="participant-id" placeholder="e.g. 01" />
       </div>
     </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="duration">duration, seconds (optional)</label>
+        <input type="text" inputmode="numeric" id="duration" placeholder="e.g. 300 for 5 min — blank to stop manually" />
+      </div>
+    </div>
     <div class="btn-row">
       <button id="start-btn" class="primary">start recording</button>
       <button id="stop-btn" class="ghost hidden">stop recording</button>
@@ -49,6 +55,10 @@
       <div class="stat">
         <div class="label">elapsed</div>
         <div class="value"><span id="stat-elapsed">00:00</span></div>
+      </div>
+      <div id="stat-remaining-wrap" class="stat hidden">
+        <div class="label">remaining</div>
+        <div class="value"><span id="stat-remaining">00:00</span></div>
       </div>
       <div class="stat">
         <div class="label">rr samples</div>

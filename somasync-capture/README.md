@@ -40,9 +40,18 @@ you don't need to reconnect it per session.
 ## use
 
 1. with SomaSync connected (the page shows a green "connected" dot), fill in
-   **condition** and **participant id**, hit **start recording**.
-2. the live readout shows elapsed time, rr samples, and computed values.
-3. **stop recording** when done — it writes into `../hrv-dashboard/data/sessions/`
+   **condition** and **participant id**. optionally set **duration
+   (seconds)** — e.g. `300` for 5 minutes — to auto-stop and save without
+   needing to come back and click stop; leave it blank to stop manually.
+   hit **start recording**.
+2. the live readout shows elapsed time (and remaining time, if a duration
+   was set), rr samples, and computed values. the countdown is enforced
+   server-side (not by a timer in the browser tab), so it still fires on
+   time even if the tab is backgrounded or loses focus — just don't let
+   the machine itself go to sleep mid-recording, since that pauses the
+   whole node process along with it.
+3. **stop recording** when done (or let it auto-stop) — it writes into
+   `../hrv-dashboard/data/sessions/`
    (override with `OUT_DIR=/some/path node server.js`):
    - `<session_id>.json` — consolidated session, same shape rr-logger
      exports: `condition`, `participant_id`, `samples[]` with `rr_ms` per

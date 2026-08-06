@@ -38,7 +38,7 @@ function localIP() {
 let somaConnected = false;
 let session = null; // set by /api/session/start, cleared by /api/session/stop
 
-function startSession(conditionRaw, participantRaw) {
+function startSession(conditionRaw, participantRaw, durationS) {
   const condition = slugify(conditionRaw);
   const participantId = slugify(participantRaw);
   const sessionStart = new Date();
@@ -49,17 +49,30 @@ function startSession(conditionRaw, participantRaw) {
     participantId,
     sessionId,
     sessionStart,
+    durationS: durationS || null,
+    autoStopTimer: null,
+    autoStopped: false,
     samples: [],
     computedStream: [],
     rawStream: fs.createWriteStream(rawPath, { flags: 'a' }),
     rawPath,
   };
+  if (durationS) {
+    session.autoStopTimer = setTimeout(() => {
+      if (session) {
+        session.autoStopped = true;
+        console.log(`\nduration reached (${durationS}s) — auto-stopping`);
+        stopSession();
+      }
+    }, durationS * 1000);
+  }
   return session;
 }
 
 function stopSession() {
   if (!session) return null;
   const s = session;
+  if (s.autoStopTimer) clearTimeout(s.autoStopTimer);
   const sessionPath = path.join(OUT_DIR, `${s.sessionId}.json`);
   const output = {
     session_id: s.sessionId,
@@ -67,6 +80,7 @@ function stopSession() {
     participant_id: s.participantId,
     source: 'somasync-selfsense',
     recorded_at: s.sessionStart.toISOString(),
+    target_duration_s: s.durationS,
     sample_count: s.samples.length,
     samples: s.samples,
     computed_stream: s.computedStream,
@@ -80,6 +94,7 @@ function stopSession() {
     raw_path: s.rawPath,
     sample_count: output.sample_count,
     computed_count: output.computed_stream.length,
+    auto_stopped: s.autoStopped,
   };
 }
 
@@ -182,11 +197,20 @@ function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/api/session/start') {
     try {
-      const { condition, participant } = JSON.parse((await readBody(req)) || '{}');
+      const { condition, participant, duration_s } = JSON.parse((await readBody(req)) || '{}');
       if (!condition || !participant) return sendJson(res, 400, { error: 'condition and participant required' });
       if (session) return sendJson(res, 409, { error: 'a session is already recording' });
-      const s = startSession(condition, participant);
-      return sendJson(res, 200, { session_id: s.sessionId });
+
+      let durationS = null;
+      if (duration_s !== undefined && duration_s !== null && duration_s !== '') {
+        durationS = Number(duration_s);
+        if (!Number.isFinite(durationS) || durationS <= 0) {
+          return sendJson(res, 400, { error: 'duration_s must be a positive number' });
+        }
+      }
+
+      const s = startSession(condition, participant, durationS);
+      return sendJson(res, 200, { session_id: s.sessionId, duration_s: s.durationS });
     } catch (e) {
       return sendJson(res, 400, { error: e.message });
     }
@@ -199,6 +223,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url === '/api/status') {
+    const elapsedS = session ? (Date.now() - session.sessionStart.getTime()) / 1000 : 0;
     return sendJson(res, 200, {
       soma_connected: somaConnected,
       recording: !!session,
@@ -206,7 +231,9 @@ const server = http.createServer(async (req, res) => {
       participant_id: session ? session.participantId : null,
       sample_count: session ? session.samples.length : 0,
       computed_count: session ? session.computedStream.length : 0,
-      elapsed_s: session ? (Date.now() - session.sessionStart.getTime()) / 1000 : 0,
+      elapsed_s: elapsedS,
+      duration_s: session ? session.durationS : null,
+      remaining_s: session && session.durationS ? Math.max(0, session.durationS - elapsedS) : null,
     });
   }
 
