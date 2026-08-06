@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>somasync capture — seks.design</title>
+<meta name="description" content="capture a somasync selfsense stream into hrv-dashboard session files." />
+<meta name="theme-color" content="#f6f1e9" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <h1>somasync capture</h1>
+  <p class="sub">records a somasync selfsense stream into an hrv-dashboard session file. the server stays running — start/stop a session per participant from here.</p>
+
+  <div class="panel">
+    <h2>somasync</h2>
+    <div class="row">
+      <div id="soma-dot" class="dot"></div>
+      <span id="soma-text" class="status-text">waiting for connection…</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>session</h2>
+    <div class="field-row">
+      <div class="field">
+        <label for="condition">condition</label>
+        <input type="text" id="condition" placeholder="e.g. baseline" />
+      </div>
+      <div class="field">
+        <label for="participant-id">participant id</label>
+        <input type="text" id="participant-id" placeholder="e.g. 01" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button id="start-btn" class="primary">start recording</button>
+      <button id="stop-btn" class="ghost hidden">stop recording</button>
+    </div>
+    <p id="session-error" class="status-text error hidden"></p>
+  </div>
+
+  <div id="monitor" class="panel hidden">
+    <h2><span id="rec-dot" class="dot live"></span> recording</h2>
+    <div class="readout">
+      <div class="stat">
+        <div class="label">elapsed</div>
+        <div class="value"><span id="stat-elapsed">00:00</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">rr samples</div>
+        <div class="value"><span id="stat-samples">0</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">computed values</div>
+        <div class="value"><span id="stat-computed">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="result-panel" class="panel hidden">
+    <h2>saved</h2>
+    <p id="result-summary" class="status-text"></p>
+  </div>
+
+  <footer>
+    sessions save into <code>../hrv-dashboard/data/sessions/</code>. every raw message is also logged to a <code>.jsonl</code> file next to it.
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
