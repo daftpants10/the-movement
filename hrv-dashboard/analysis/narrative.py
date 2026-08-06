@@ -14,6 +14,8 @@ and handed to the model as facts, since LLMs are unreliable at reading
 numeric trends off a raw list.
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 
