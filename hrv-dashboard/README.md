@@ -34,7 +34,12 @@ open `http://localhost:5057`.
 2. hit **rescan data folder** (uploading does this automatically).
 3. **sessions** tab: per-session table + a participant × condition overview
    grid. click any row/cell for a detail view with the windowed alpha1
-   trend for that session.
+   trend for that session, and — if the export includes a `computed_stream`
+   (e.g. from [somasync-capture](../somasync-capture), when the data source
+   streams its own already-computed values like a live dfa alpha1) — a
+   **source's own values** section comparing those against the dashboard's
+   own independently-computed numbers. These are two separate calculations
+   and won't necessarily agree; that's expected, not a bug.
 4. **by participant** / **by condition** tabs: pick one, hit **get
    narrative**. cached until the underlying sessions change; **regenerate**
    forces a fresh call.

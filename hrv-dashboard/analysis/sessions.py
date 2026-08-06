@@ -58,6 +58,8 @@ def load_session_file(path: Path) -> dict:
     rr_ms = [rr_ms[i] for i in order]
     timestamps_ms = [timestamps_ms[i] for i in order]
 
+    computed_stream = raw.get("computed_stream") or []
+
     return {
         "session_id": session_id,
         "condition": condition,
@@ -65,7 +67,58 @@ def load_session_file(path: Path) -> dict:
         "recorded_at": raw.get("recorded_at"),
         "rr_ms": rr_ms,
         "timestamps_ms": timestamps_ms,
+        "computed_stream": computed_stream,
     }
+
+
+# maps a source-reported computed_stream field name to the equivalent
+# in-house metric key, so the dashboard can show them side by side
+SOURCE_FIELD_TO_OURS = {
+    "dfa_alpha1": "alpha1",
+    "hr": "mean_hr",
+    "rmssd": "rmssd",
+    "sdnn": "sdnn",
+    "pnn50": "pnn50",
+}
+
+
+def summarize_computed_stream(computed_stream: list) -> dict:
+    """Group a session's computed_stream entries by field name and summarize
+    each: mean/min/max/count plus a compact time series for charting.
+
+    computed_stream entries come from the data source itself (e.g. SomaSync's
+    own live dfa_alpha1/hr/rmssd estimate) — these are never used for the
+    dashboard's own metrics, only shown alongside them for comparison.
+    """
+    by_field = {}
+    for entry in computed_stream:
+        field = entry.get("field")
+        value = entry.get("value")
+        ts = entry.get("timestamp_ms_unix")
+        if field is None or value is None or ts is None:
+            continue
+        by_field.setdefault(field, []).append((ts, float(value)))
+
+    if not by_field:
+        return {}
+
+    result = {}
+    for field, points in by_field.items():
+        points.sort(key=lambda p: p[0])
+        t0 = points[0][0]
+        values = [v for _t, v in points]
+        result[field] = {
+            "ours_field": SOURCE_FIELD_TO_OURS.get(field),
+            "count": len(values),
+            "mean": round(sum(values) / len(values), 4),
+            "min": round(min(values), 4),
+            "max": round(max(values), 4),
+            "series": [
+                {"t_s": round((t - t0) / 1000, 1), "value": round(v, 4)}
+                for t, v in points
+            ],
+        }
+    return result
 
 
 def analyze_session(parsed: dict) -> dict:
@@ -88,6 +141,8 @@ def analyze_session(parsed: dict) -> dict:
         "artifact_pct": round(n_artifacts / n_samples * 100, 2) if n_samples else None,
         "duration_s": round(duration_s, 1),
     }
+
+    result["source_computed"] = summarize_computed_stream(parsed.get("computed_stream") or [])
 
     if n_valid_for_interp < 2:
         result.update({

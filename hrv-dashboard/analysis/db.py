@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     alpha1 REAL,
     alpha1_note TEXT,
     alpha1_windowed_json TEXT,
+    source_computed_json TEXT,
     analyzed_at TEXT
 );
 
@@ -50,23 +51,34 @@ def get_conn(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn):
+    # CREATE TABLE IF NOT EXISTS won't add columns to a table that already
+    # exists on disk from an older version of this schema — patch those in.
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
+    if "source_computed_json" not in existing:
+        conn.execute("ALTER TABLE sessions ADD COLUMN source_computed_json TEXT")
+        conn.commit()
 
 
 def upsert_session(conn, analysis: dict):
     windowed_json = json.dumps(analysis.get("alpha1_windowed", []))
+    source_computed_json = json.dumps(analysis.get("source_computed", {}))
     conn.execute(
         """
         INSERT INTO sessions (
             session_id, file_name, file_hash, condition, participant_id,
             recorded_at, sample_count, n_artifacts, artifact_pct, duration_s,
             analyzable, reason, mean_rr, mean_hr, sdnn, rmssd, pnn50,
-            alpha1, alpha1_note, alpha1_windowed_json, analyzed_at
+            alpha1, alpha1_note, alpha1_windowed_json, source_computed_json, analyzed_at
         ) VALUES (
             :session_id, :file_name, :file_hash, :condition, :participant_id,
             :recorded_at, :sample_count, :n_artifacts, :artifact_pct, :duration_s,
             :analyzable, :reason, :mean_rr, :mean_hr, :sdnn, :rmssd, :pnn50,
-            :alpha1, :alpha1_note, :alpha1_windowed_json, :analyzed_at
+            :alpha1, :alpha1_note, :alpha1_windowed_json, :source_computed_json, :analyzed_at
         )
         ON CONFLICT(session_id) DO UPDATE SET
             file_name=excluded.file_name, file_hash=excluded.file_hash,
@@ -78,6 +90,7 @@ def upsert_session(conn, analysis: dict):
             sdnn=excluded.sdnn, rmssd=excluded.rmssd, pnn50=excluded.pnn50,
             alpha1=excluded.alpha1, alpha1_note=excluded.alpha1_note,
             alpha1_windowed_json=excluded.alpha1_windowed_json,
+            source_computed_json=excluded.source_computed_json,
             analyzed_at=excluded.analyzed_at
         """,
         {
@@ -101,6 +114,7 @@ def upsert_session(conn, analysis: dict):
             "alpha1": analysis.get("alpha1"),
             "alpha1_note": analysis.get("alpha1_note"),
             "alpha1_windowed_json": windowed_json,
+            "source_computed_json": source_computed_json,
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
         },
     )
@@ -120,6 +134,7 @@ def row_to_session(row) -> dict:
     d = dict(row)
     d["analyzable"] = bool(d["analyzable"])
     d["alpha1_windowed"] = json.loads(d.pop("alpha1_windowed_json") or "[]")
+    d["source_computed"] = json.loads(d.pop("source_computed_json", None) or "{}")
     return d
 
 

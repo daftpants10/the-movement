@@ -39,34 +39,84 @@
 
   // --- sparkline --------------------------------------------------------
 
-  function sparklineSvg(windowed, width, height) {
+  // ours: our own windowed alpha1 ([{t_start_s,t_end_s,alpha1}]).
+  // sourceSeries: optional comparison series from source_computed
+  // ([{t_s,value}]) — e.g. the data source's own live alpha1 estimate.
+  function sparklineSvg(ours, width, height, sourceSeries, sourceLabel) {
     width = width || 480;
     height = height || 90;
-    if (!windowed || windowed.length < 2) {
-      return '<p class="status-text">not enough windows for a trend chart.</p>';
-    }
-    const alphas = windowed.map((w) => w.alpha1);
-    const min = Math.min(...alphas);
-    const max = Math.max(...alphas);
     const pad = 8;
-    const range = (max - min) || 1;
-    const points = windowed.map((w, i) => {
-      const x = pad + (i / (windowed.length - 1)) * (width - pad * 2);
-      const y = height - pad - ((w.alpha1 - min) / range) * (height - pad * 2);
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
+    const hasOurs = ours && ours.length >= 2;
+    const hasSource = sourceSeries && sourceSeries.length >= 2;
+    if (!hasOurs && !hasSource) {
+      return '<p class="status-text">not enough data for a trend chart.</p>';
+    }
+
+    const oursPoints = hasOurs
+      ? ours.map((w) => ({ t: (w.t_start_s + w.t_end_s) / 2, v: w.alpha1 }))
+      : [];
+    const sourcePoints = hasSource
+      ? sourceSeries.map((p) => ({ t: p.t_s, v: p.value }))
+      : [];
+    const allValues = oursPoints.map((p) => p.v).concat(sourcePoints.map((p) => p.v));
+    const min = Math.min(...allValues);
+    const max = Math.max(...allValues);
+    const tMax = Math.max(
+      oursPoints.length ? oursPoints[oursPoints.length - 1].t : 0,
+      sourcePoints.length ? sourcePoints[sourcePoints.length - 1].t : 0
+    ) || 1;
+
+    function toPolyline(points, color) {
+      if (points.length < 2) return '';
+      const range = (max - min) || 1;
+      const coords = points.map((p) => {
+        const x = pad + (p.t / tMax) * (width - pad * 2);
+        const y = height - pad - ((p.v - min) / range) * (height - pad * 2);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      return `<polyline points="${coords}" fill="none" stroke="${color}" stroke-width="2" />`;
+    }
 
     // reference line at alpha1 = 0.75 (common vt1-adjacent landmark in the literature)
-    const refY = height - pad - ((0.75 - min) / range) * (height - pad * 2);
+    const refY = height - pad - ((0.75 - min) / ((max - min) || 1)) * (height - pad * 2);
     const refLine = (0.75 >= min && 0.75 <= max)
       ? `<line x1="${pad}" y1="${refY.toFixed(1)}" x2="${width - pad}" y2="${refY.toFixed(1)}" stroke="#e4dccc" stroke-dasharray="3,3" />`
       : '';
 
+    const legend = hasSource
+      ? `<p class="status-text"><span style="color:#e8501f">■</span> dashboard (whole-session windows) &nbsp; <span style="color:#8a8378">■</span> ${sourceLabel || 'source'}</p>`
+      : '';
+
     return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
       ${refLine}
-      <polyline points="${points}" fill="none" stroke="#e8501f" stroke-width="2" />
+      ${toPolyline(sourcePoints, '#8a8378')}
+      ${toPolyline(oursPoints, '#e8501f')}
     </svg>
-    <p class="status-text">alpha1 over session: min ${min.toFixed(3)}, max ${max.toFixed(3)} (dashed line = 0.75)</p>`;
+    <p class="status-text">min ${min.toFixed(3)}, max ${max.toFixed(3)} (dashed line = 0.75)</p>
+    ${legend}`;
+  }
+
+  function sourceComparisonTable(sourceComputed, session) {
+    const fields = Object.keys(sourceComputed || {});
+    if (fields.length === 0) return '';
+    const rows = fields.map((field) => {
+      const s = sourceComputed[field];
+      const oursVal = s.ours_field ? session[s.ours_field] : null;
+      const oursCell = oursVal !== null && oursVal !== undefined ? fmt(oursVal, 3) : '<span class="muted">no equivalent</span>';
+      return `<tr>
+        <td>${field}</td>
+        <td class="num">${s.count}</td>
+        <td class="num">${fmt(s.mean, 3)}</td>
+        <td class="num">${fmt(s.min, 3)}-${fmt(s.max, 3)}</td>
+        <td class="num">${oursCell}</td>
+      </tr>`;
+    }).join('');
+    return `<h2 style="margin-top:18px">source's own values</h2>
+      <p class="status-text">whatever the data source streamed as already-computed, alongside what the dashboard computes itself from the raw rr intervals. these are independent calculations and won't necessarily match.</p>
+      <table>
+        <thead><tr><th>field</th><th>n</th><th>mean</th><th>range</th><th>dashboard's own</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
   }
 
   // --- sessions table -----------------------------------------------------
@@ -162,8 +212,10 @@
           <tr><td class="muted">pnn50</td><td>${fmt(s.pnn50, 1)}%</td></tr>
           <tr><td class="muted">dfa alpha1</td><td>${s.alpha1 !== null ? fmt(s.alpha1, 4) : (s.alpha1_note || 'n/a')}</td></tr>
         </table>`;
-        html += sparklineSvg(s.alpha1_windowed);
+        const dfaSource = s.source_computed && s.source_computed.dfa_alpha1;
+        html += sparklineSvg(s.alpha1_windowed, null, null, dfaSource && dfaSource.series, "source's own dfa alpha1");
       }
+      html += sourceComparisonTable(s.source_computed, s);
       body.innerHTML = html;
     } catch (err) {
       body.innerHTML = `<p class="status-text">${err.message}</p>`;
