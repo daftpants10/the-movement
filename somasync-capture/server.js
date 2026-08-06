@@ -87,6 +87,14 @@ function stopSession() {
 
 const wss = new WebSocket.Server({ port: SOMA_PORT });
 
+wss.on('error', (e) => {
+  console.error(`\ncould not bind the somasync websocket port ${SOMA_PORT}: ${e.message}`);
+  if (e.code === 'EADDRINUSE') {
+    console.error(`something else is already using port ${SOMA_PORT} — stop it, or run with SOMA_PORT=<other port> node server.js`);
+  }
+  process.exit(1);
+});
+
 wss.on('connection', (ws) => {
   somaConnected = true;
   console.log('somasync connected');
@@ -203,6 +211,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   serveStatic(req, res);
+});
+
+server.on('error', (e) => {
+  console.error(`\ncould not bind the control panel port ${HTTP_PORT}: ${e.message}`);
+  if (e.code === 'EADDRINUSE') {
+    console.error(`something else is already using port ${HTTP_PORT} — stop it, or run with PORT=<other port> node server.js`);
+  }
+  process.exit(1);
 });
 
 server.listen(HTTP_PORT, () => {
