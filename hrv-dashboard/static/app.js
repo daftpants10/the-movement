@@ -32,8 +32,9 @@
 
   function durationLabel(s) {
     if (s === null || s === undefined) return '—';
-    const mm = Math.floor(s / 60);
-    const ss = Math.round(s % 60);
+    const totalSeconds = Math.round(s);
+    const mm = Math.floor(totalSeconds / 60);
+    const ss = totalSeconds % 60;
     return mm + ':' + String(ss).padStart(2, '0');
   }
 
