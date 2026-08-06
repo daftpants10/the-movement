@@ -66,6 +66,9 @@
 
   label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
 
+  .field-row{display:flex; gap:12px;}
+  .field{flex:1;}
+
   button{
     font-family:inherit;
     font-size:13px;
@@ -136,8 +139,16 @@
 
   <div class="panel">
     <h2>session</h2>
-    <label for="session-name">session name</label>
-    <input type="text" id="session-name" placeholder="e.g. baseline-01" disabled />
+    <div class="field-row">
+      <div class="field">
+        <label for="condition">condition</label>
+        <input type="text" id="condition" placeholder="e.g. baseline" disabled />
+      </div>
+      <div class="field">
+        <label for="participant-id">participant id</label>
+        <input type="text" id="participant-id" placeholder="e.g. 01" disabled />
+      </div>
+    </div>
     <div class="btn-row">
       <button id="start-btn" class="primary" disabled>start recording</button>
       <button id="stop-btn" class="ghost hidden">stop recording</button>
@@ -194,7 +205,8 @@
     connText: document.getElementById('conn-text'),
     connectBtn: document.getElementById('connect-btn'),
     disconnectBtn: document.getElementById('disconnect-btn'),
-    sessionName: document.getElementById('session-name'),
+    condition: document.getElementById('condition'),
+    participantId: document.getElementById('participant-id'),
     startBtn: document.getElementById('start-btn'),
     stopBtn: document.getElementById('stop-btn'),
     monitor: document.getElementById('monitor'),
@@ -214,6 +226,8 @@
 
   let isRecording = false;
   let sessionId = null;
+  let condition = null;
+  let participantId = null;
   let sessionStartMs = null;
   let samples = [];
   let elapsedTimer = null;
@@ -293,7 +307,8 @@
       setConnState('ok', device.name || 'connected');
       els.connectBtn.classList.add('hidden');
       els.disconnectBtn.classList.remove('hidden');
-      els.sessionName.disabled = false;
+      els.condition.disabled = false;
+      els.participantId.disabled = false;
       els.startBtn.disabled = false;
     } catch (err) {
       console.error(err);
@@ -308,7 +323,8 @@
     setConnState('', 'not connected');
     els.connectBtn.classList.remove('hidden');
     els.disconnectBtn.classList.add('hidden');
-    els.sessionName.disabled = true;
+    els.condition.disabled = true;
+    els.participantId.disabled = true;
     els.startBtn.disabled = true;
     if (isRecording) {
       stopRecording();
@@ -340,6 +356,8 @@
         timestamp_ms_unix: receiptMs,
         rr_ms: Math.round(rrMs * 100) / 100,
         session_id: sessionId,
+        condition: condition,
+        participant_id: participantId,
       });
     }
 
@@ -349,15 +367,25 @@
     els.statCount.textContent = samples.length;
   }
 
-  function makeSessionId(name) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const slug = (name || 'session').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'session';
-    return slug + '_' + stamp;
+  function slugify(value) {
+    return (value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
 
   function startRecording() {
+    const conditionRaw = els.condition.value.trim();
+    const participantRaw = els.participantId.value.trim();
+    if (!conditionRaw || !participantRaw) {
+      alert('fill in condition and participant id before starting.');
+      return;
+    }
+
+    condition = slugify(conditionRaw) || 'condition';
+    participantId = slugify(participantRaw) || 'participant';
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    sessionId = condition + '_' + participantId + '_' + stamp;
+
     samples = [];
-    sessionId = makeSessionId(els.sessionName.value);
     sessionStartMs = Date.now();
     isRecording = true;
 
@@ -370,7 +398,8 @@
     els.exportPanel.classList.add('hidden');
     els.startBtn.classList.add('hidden');
     els.stopBtn.classList.remove('hidden');
-    els.sessionName.disabled = true;
+    els.condition.disabled = true;
+    els.participantId.disabled = true;
 
     elapsedTimer = setInterval(updateElapsed, 250);
   }
@@ -389,7 +418,8 @@
 
     els.stopBtn.classList.add('hidden');
     els.startBtn.classList.remove('hidden');
-    els.sessionName.disabled = false;
+    els.condition.disabled = false;
+    els.participantId.disabled = false;
 
     buildExports();
   }
@@ -397,9 +427,9 @@
   // --- export ------------------------------------------------------------
 
   function toCsv(rows) {
-    const header = 'timestamp_iso,timestamp_ms_unix,rr_ms,session_id';
+    const header = 'timestamp_iso,timestamp_ms_unix,rr_ms,session_id,condition,participant_id';
     const lines = rows.map(r =>
-      [r.timestamp_iso, r.timestamp_ms_unix, r.rr_ms, r.session_id].join(',')
+      [r.timestamp_iso, r.timestamp_ms_unix, r.rr_ms, r.session_id, r.condition, r.participant_id].join(',')
     );
     return [header].concat(lines).join('\n');
   }
@@ -408,6 +438,9 @@
     const csv = toCsv(samples);
     const json = JSON.stringify({
       session_id: sessionId,
+      condition: condition,
+      participant_id: participantId,
+      recorded_at: new Date(sessionStartMs).toISOString(),
       sample_count: samples.length,
       samples: samples,
     }, null, 2);
