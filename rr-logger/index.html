@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>rr logger — seks.design</title>
+<meta name="description" content="polar h10 rr interval logger. connects over web bluetooth, logs every rr interval with a receipt timestamp, exports csv/json." />
+<meta name="theme-color" content="#f6f1e9" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f1e9;
+    --ink:#2a2622;
+    --muted:#8a8378;
+    --line:#e4dccc;
+    --accent:#e8501f;
+    --panel:#fffdf9;
+    --colw:560px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .shell{max-width:var(--colw); margin:0 auto; padding:24px 20px 80px;}
+
+  .back{display:inline-block; margin-bottom:24px; color:var(--muted); text-decoration:none; font-size:12px;}
+  .back:hover{color:var(--ink)}
+
+  h1{font-size:20px; margin:0 0 4px; letter-spacing:-0.01em; font-weight:700;}
+  .sub{color:var(--muted); font-size:13px; margin:0 0 28px;}
+
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px 20px; margin-bottom:16px;}
+  .panel h2{font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:0 0 14px; font-weight:700;}
+
+  .row{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .row:last-child{margin-bottom:0}
+
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0;}
+  .dot.ok{background:#3c9a5f}
+  .dot.warn{background:var(--accent)}
+  .dot.live{background:var(--accent); animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:0.35}}
+
+  .status-text{color:var(--muted); font-size:13px;}
+
+  input[type=text]{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-family:inherit;
+    font-size:14px;
+    color:var(--ink);
+  }
+  input[type=text]:focus{outline:none; border-color:var(--accent);}
+  input[type=text]:disabled{opacity:0.5}
+
+  label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+
+  button{
+    font-family:inherit;
+    font-size:13px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--panel);
+    padding:10px 18px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:opacity .15s;
+  }
+  button:hover:not(:disabled){opacity:0.85}
+  button:disabled{opacity:0.3; cursor:not-allowed;}
+  button.primary{background:var(--accent); border-color:var(--accent);}
+  button.ghost{background:transparent; color:var(--ink);}
+
+  .btn-row{display:flex; gap:10px; margin-top:14px;}
+
+  .readout{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .stat{padding:12px 0;}
+  .stat .label{font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:6px;}
+  .stat .value{font-size:28px; font-weight:700; letter-spacing:-0.01em;}
+  .stat .unit{font-size:13px; color:var(--muted); font-weight:400; margin-left:4px;}
+
+  .hidden{display:none !important;}
+
+  .warning{background:#fbeee8; border:1px solid #f0c8b4; color:#a13d13; padding:12px 14px; border-radius:6px; font-size:13px; margin-bottom:16px;}
+
+  .export-row{display:flex; gap:10px; margin-top:14px;}
+  .export-row a{
+    flex:1;
+    text-align:center;
+    border:1px solid var(--ink);
+    border-radius:6px;
+    padding:10px 0;
+    color:var(--ink);
+    text-decoration:none;
+    font-size:13px;
+  }
+  .export-row a:hover{background:var(--ink); color:var(--panel);}
+
+  footer{color:var(--muted); font-size:12px; margin-top:24px;}
+  footer a{color:inherit}
+</style>
+</head>
+<body>
+<div class="shell">
+  <a class="back" href="../index.html">← seks.design</a>
+
+  <h1>rr logger</h1>
+  <p class="sub">polar h10 rr interval logging. web bluetooth. csv/json export.</p>
+
+  <div id="unsupported" class="warning hidden">
+    web bluetooth isn't available in this browser. use chrome or edge, desktop or android. safari and ios aren't supported.
+  </div>
+
+  <div class="panel">
+    <h2>device</h2>
+    <div class="row">
+      <div id="conn-dot" class="dot"></div>
+      <span id="conn-text" class="status-text">not connected</span>
+    </div>
+    <div class="btn-row">
+      <button id="connect-btn" class="primary">connect polar h10</button>
+      <button id="disconnect-btn" class="ghost hidden">disconnect</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>session</h2>
+    <label for="session-name">session name</label>
+    <input type="text" id="session-name" placeholder="e.g. baseline-01" disabled />
+    <div class="btn-row">
+      <button id="start-btn" class="primary" disabled>start recording</button>
+      <button id="stop-btn" class="ghost hidden">stop recording</button>
+    </div>
+  </div>
+
+  <div id="monitor" class="panel hidden">
+    <h2><span id="rec-dot" class="dot live"></span> recording</h2>
+    <div class="readout">
+      <div class="stat">
+        <div class="label">rr interval</div>
+        <div class="value"><span id="stat-rr">—</span><span class="unit">ms</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">instantaneous hr</div>
+        <div class="value"><span id="stat-hr">—</span><span class="unit">bpm</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">elapsed</div>
+        <div class="value"><span id="stat-elapsed">00:00</span></div>
+      </div>
+      <div class="stat">
+        <div class="label">samples</div>
+        <div class="value"><span id="stat-count">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="export-panel" class="panel hidden">
+    <h2>export</h2>
+    <p class="status-text" id="export-summary"></p>
+    <div class="export-row">
+      <a id="export-csv" download>download csv</a>
+      <a id="export-json" download>download json</a>
+    </div>
+  </div>
+
+  <footer>
+    requires chrome or edge (desktop or android) and https. pairing needs a button click — no auto-connect.<br>
+    polar h10, heart rate service 0x180d, characteristic 0x2a37.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const HR_SERVICE = "heart_rate";
+  const HR_MEASUREMENT_CHAR = "heart_rate_measurement";
+
+  const els = {
+    unsupported: document.getElementById('unsupported'),
+    connDot: document.getElementById('conn-dot'),
+    connText: document.getElementById('conn-text'),
+    connectBtn: document.getElementById('connect-btn'),
+    disconnectBtn: document.getElementById('disconnect-btn'),
+    sessionName: document.getElementById('session-name'),
+    startBtn: document.getElementById('start-btn'),
+    stopBtn: document.getElementById('stop-btn'),
+    monitor: document.getElementById('monitor'),
+    statRr: document.getElementById('stat-rr'),
+    statHr: document.getElementById('stat-hr'),
+    statElapsed: document.getElementById('stat-elapsed'),
+    statCount: document.getElementById('stat-count'),
+    exportPanel: document.getElementById('export-panel'),
+    exportSummary: document.getElementById('export-summary'),
+    exportCsv: document.getElementById('export-csv'),
+    exportJson: document.getElementById('export-json'),
+  };
+
+  let device = null;
+  let server = null;
+  let hrChar = null;
+
+  let isRecording = false;
+  let sessionId = null;
+  let sessionStartMs = null;
+  let samples = [];
+  let elapsedTimer = null;
+
+  // --- bluetooth availability -------------------------------------------
+
+  if (!('bluetooth' in navigator)) {
+    els.unsupported.classList.remove('hidden');
+    els.connectBtn.disabled = true;
+    els.connectBtn.textContent = 'bluetooth unavailable';
+  }
+
+  // --- heart rate measurement parsing -------------------------------------
+  // BLE Heart Rate Measurement (0x2A37), per Bluetooth SIG spec:
+  // byte 0: flags
+  //   bit 0    - HR value format: 0 = uint8, 1 = uint16
+  //   bits 1-2 - sensor contact status
+  //   bit 3    - energy expended present
+  //   bit 4    - RR-interval present
+  // then: HR value (uint8 or uint16, LE)
+  // then: energy expended (uint16, LE) if present
+  // then: zero or more RR-interval values (uint16, LE, units of 1/1024 s)
+  function parseHeartRateMeasurement(dataview) {
+    const flags = dataview.getUint8(0);
+    const hrFormat16 = (flags & 0x01) !== 0;
+    const energyPresent = (flags & 0x08) !== 0;
+    const rrPresent = (flags & 0x10) !== 0;
+
+    let offset = 1;
+    let heartRate;
+    if (hrFormat16) {
+      heartRate = dataview.getUint16(offset, true);
+      offset += 2;
+    } else {
+      heartRate = dataview.getUint8(offset);
+      offset += 1;
+    }
+
+    if (energyPresent) {
+      offset += 2;
+    }
+
+    const rrIntervalsMs = [];
+    if (rrPresent) {
+      while (offset + 2 <= dataview.byteLength) {
+        const raw = dataview.getUint16(offset, true); // units of 1/1024 sec
+        offset += 2;
+        rrIntervalsMs.push(raw * 1000 / 1024);
+      }
+    }
+
+    return { heartRate, rrIntervalsMs };
+  }
+
+  // --- connection ----------------------------------------------------------
+
+  function setConnState(state, label) {
+    els.connDot.className = 'dot' + (state ? ' ' + state : '');
+    els.connText.textContent = label;
+  }
+
+  async function connect() {
+    try {
+      setConnState('warn', 'requesting device…');
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [HR_SERVICE] }],
+      });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+
+      setConnState('warn', 'connecting…');
+      server = await device.gatt.connect();
+      const service = await server.getPrimaryService(HR_SERVICE);
+      hrChar = await service.getCharacteristic(HR_MEASUREMENT_CHAR);
+      await hrChar.startNotifications();
+      hrChar.addEventListener('characteristicvaluechanged', onHrNotification);
+
+      setConnState('ok', device.name || 'connected');
+      els.connectBtn.classList.add('hidden');
+      els.disconnectBtn.classList.remove('hidden');
+      els.sessionName.disabled = false;
+      els.startBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      setConnState('', 'not connected');
+      if (err && err.name !== 'NotFoundError') {
+        alert('connection failed: ' + (err.message || err));
+      }
+    }
+  }
+
+  function onDisconnected() {
+    setConnState('', 'not connected');
+    els.connectBtn.classList.remove('hidden');
+    els.disconnectBtn.classList.add('hidden');
+    els.sessionName.disabled = true;
+    els.startBtn.disabled = true;
+    if (isRecording) {
+      stopRecording();
+    }
+  }
+
+  function disconnect() {
+    if (device && device.gatt.connected) {
+      device.gatt.disconnect();
+    } else {
+      onDisconnected();
+    }
+  }
+
+  // --- recording -------------------------------------------------------
+
+  function onHrNotification(event) {
+    const dataview = event.target.value;
+    const receiptMs = Date.now();
+    const { heartRate, rrIntervalsMs } = parseHeartRateMeasurement(dataview);
+
+    if (!isRecording) return;
+
+    if (rrIntervalsMs.length === 0) return;
+
+    for (const rrMs of rrIntervalsMs) {
+      samples.push({
+        timestamp_iso: new Date(receiptMs).toISOString(),
+        timestamp_ms_unix: receiptMs,
+        rr_ms: Math.round(rrMs * 100) / 100,
+        session_id: sessionId,
+      });
+    }
+
+    const lastRr = rrIntervalsMs[rrIntervalsMs.length - 1];
+    els.statRr.textContent = Math.round(lastRr);
+    els.statHr.textContent = Math.round(60000 / lastRr);
+    els.statCount.textContent = samples.length;
+  }
+
+  function makeSessionId(name) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const slug = (name || 'session').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'session';
+    return slug + '_' + stamp;
+  }
+
+  function startRecording() {
+    samples = [];
+    sessionId = makeSessionId(els.sessionName.value);
+    sessionStartMs = Date.now();
+    isRecording = true;
+
+    els.statRr.textContent = '—';
+    els.statHr.textContent = '—';
+    els.statCount.textContent = '0';
+    els.statElapsed.textContent = '00:00';
+
+    els.monitor.classList.remove('hidden');
+    els.exportPanel.classList.add('hidden');
+    els.startBtn.classList.add('hidden');
+    els.stopBtn.classList.remove('hidden');
+    els.sessionName.disabled = true;
+
+    elapsedTimer = setInterval(updateElapsed, 250);
+  }
+
+  function updateElapsed() {
+    const s = Math.floor((Date.now() - sessionStartMs) / 1000);
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    els.statElapsed.textContent = mm + ':' + ss;
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+
+    els.stopBtn.classList.add('hidden');
+    els.startBtn.classList.remove('hidden');
+    els.sessionName.disabled = false;
+
+    buildExports();
+  }
+
+  // --- export ------------------------------------------------------------
+
+  function toCsv(rows) {
+    const header = 'timestamp_iso,timestamp_ms_unix,rr_ms,session_id';
+    const lines = rows.map(r =>
+      [r.timestamp_iso, r.timestamp_ms_unix, r.rr_ms, r.session_id].join(',')
+    );
+    return [header].concat(lines).join('\n');
+  }
+
+  function buildExports() {
+    const csv = toCsv(samples);
+    const json = JSON.stringify({
+      session_id: sessionId,
+      sample_count: samples.length,
+      samples: samples,
+    }, null, 2);
+
+    const csvBlob = new Blob([csv], { type: 'text/csv' });
+    const jsonBlob = new Blob([json], { type: 'application/json' });
+
+    const csvUrl = URL.createObjectURL(csvBlob);
+    const jsonUrl = URL.createObjectURL(jsonBlob);
+
+    els.exportCsv.href = csvUrl;
+    els.exportCsv.setAttribute('download', sessionId + '.csv');
+    els.exportJson.href = jsonUrl;
+    els.exportJson.setAttribute('download', sessionId + '.json');
+
+    els.exportSummary.textContent = samples.length + ' samples — ' + sessionId;
+    els.exportPanel.classList.remove('hidden');
+  }
+
+  // --- wiring --------------------------------------------------------
+
+  els.connectBtn.addEventListener('click', connect);
+  els.disconnectBtn.addEventListener('click', disconnect);
+  els.startBtn.addEventListener('click', startRecording);
+  els.stopBtn.addEventListener('click', stopRecording);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (isRecording) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+})();
+</script>
+</body>
+</html>
