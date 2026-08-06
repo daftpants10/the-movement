@@ -1,0 +1,12 @@
+{
+  "name": "somasync-capture",
+  "version": "1.0.0",
+  "description": "Capture a SomaSync SelfSense stream and consolidate it into an hrv-dashboard session file",
+  "main": "capture.js",
+  "scripts": {
+    "start": "node capture.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
